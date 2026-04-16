@@ -1,19 +1,88 @@
 # IGAP-DCLA
 
-IGAP-DCLA is an inference-focused implementation of our hybrid hallucination-mitigation method for LLaVA-style vision-language models. It combines Image-Guided Attention Pruning (IGAP) with Dynamic Contrastive Logit Adjustment (DCLA) and keeps the SPIN-only and MoD-only ablations available under `model/`.
+**IGAP-DCLA** is an inference-time framework for reducing hallucinations in Vision-Language Models (VLMs), particularly LLaVA-style architectures.
 
-## What This Repo Contains
+This repository implements a hybrid method that integrates:
 
-- `data/loader.py`: MMHal-Bench download and loading utility
-- `model/spin.py`: SPIN baseline helper
-- `model/mod.py`: MoD baseline helper
-- `model/igap_dcla.py`: notebook-derived hybrid decoding and attention patching logic
-- `src/main.py`: main MMHal inference runner
-- `report.py`: optional markdown summary generator for MMHal and POPE outputs
+- **Image-Guided Attention Pruning (IGAP)** — attention-level grounding
+- **Dynamic Contrastive Logit Adjustment (DCLA)** — adaptive decoding control
 
-`mod.py` and `spin.py` are intentionally kept only inside `model/` and are not present at the repository root.
+The implementation also includes **SPIN** and **MoD** baselines for controlled comparison.
 
-## Repository Layout
+---
+
+## Overview
+
+Large Vision-Language Models often generate **hallucinated outputs**, producing objects or relations not present in the image. This behavior arises from over-reliance on language priors when visual grounding is weak.
+
+IGAP-DCLA addresses this issue through:
+
+- Attention-level intervention (IGAP)
+- Logit-level adaptive correction (DCLA)
+- Real-time hallucination detection via **JS divergence**
+
+The method operates entirely at **inference time**, requiring no retraining.
+
+---
+
+## Architecture
+
+The framework introduces a **dual-pass decoding mechanism** integrated into the autoregressive generation loop:
+
+1. Standard forward pass → baseline logits  
+2. IGAP forward pass → grounded logits  
+3. JS divergence computation → hallucination risk  
+4. DCLA routing → adaptive decoding decision  
+
+### Architecture Diagram
+
+<p align="center">
+  <img src="assets/architecture.png" alt="IGAP-DCLA Architecture" width="85%">
+</p>
+
+The pipeline consists of:
+
+- Vision encoder + projection module  
+- LLM decoder backbone  
+- Attention head pruning (IGAP)  
+- Divergence-based routing  
+- Dynamic logit adjustment (DCLA)  
+
+---
+
+## Method Components
+
+### Image-Guided Attention Pruning (IGAP)
+
+- Ranks attention heads based on visual token focus  
+- Suppresses inattentive heads during decoding  
+- Produces a grounded reference distribution without modifying image inputs  
+
+### Hallucination Detection
+
+- Computes **JS divergence** between:
+  - Baseline logits
+  - IGAP logits  
+- High divergence indicates reliance on language priors  
+
+### Dynamic Contrastive Logit Adjustment (DCLA)
+
+Applies token-level routing:
+
+| Condition | Action |
+|----------|--------|
+| High confidence | Greedy decoding |
+| Low divergence | Complementary amplification |
+| High divergence | Contrastive suppression + APC |
+
+### Adaptive Plausibility Constraints (APC)
+
+- Filters low-probability tokens
+- Prevents unstable vocabulary shifts during contrastive decoding
+
+---
+
+## Repository Structure
 
 ```text
 .
@@ -38,6 +107,7 @@ IGAP-DCLA is an inference-focused implementation of our hybrid hallucination-mit
 ├── report.py
 ├── requirements.txt
 └── README.md
+
 ```
 
 ## Installation
